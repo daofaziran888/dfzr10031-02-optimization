@@ -244,3 +244,21 @@ class AuditEntry(BaseModel):
     field_5: str | None = None  # 变更内容
     field_6: str | None = None  # 审计结果
     field_7: str | None = None  # 记录状态
+
+
+class CalibrationSubmit(BaseModel):
+    """提交分层误报校准批次的入参。"""
+
+    max_fpr: float = Field(default=0.05, ge=0.0, le=1.0, description="可接受的误报率上限")
+    min_negative_weight: float = Field(
+        default=100.0, gt=0.0, description="总体有效负例权重（有效样本量）最低要求"
+    )
+    request_id: str | None = Field(default=None, description="幂等键，并发/重试提交时保证只确认一次")
+
+
+class LabelCorrection(BaseModel):
+    """复核更正单条样本标签的入参。"""
+
+    new_label: str = Field(description="更正后的标签：正例 或 负例")
+    operator: str = Field(default="值班员")
+    reason: str = Field(default="", description="更正原因")

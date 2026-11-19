@@ -60,6 +60,47 @@
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
 
+    <h3 class="calib-title">分层误报校准表（告警判定依据）</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>模型编号</th>
+          <th>校准批次</th>
+          <th>可试用阈值范围</th>
+          <th>覆盖分层 / 流量</th>
+          <th>各层有效负例权重</th>
+          <th>不可试用流量清单</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="item in calibrationItems" :key="item['校准批次编号']">
+          <td>{{ item['模型编号'] }}</td>
+          <td>{{ item['校准批次编号'] }}</td>
+          <td>
+            <span v-if="item['可试用']">
+              [{{ item['可试用阈值范围']?.min }}, {{ item['可试用阈值范围']?.max }}]
+            </span>
+            <span v-else>不可试用</span>
+          </td>
+          <td>{{ item['覆盖分层'].join('、') || '—' }}（{{ formatPercent(item['可覆盖流量占比']) }}）</td>
+          <td>
+            <span v-for="layer in item['判定依据']['分层有效负例权重']" :key="layer.layer" class="layer-chip">
+              {{ layer.layer }}：{{ layer.negative_missing ? '缺负例' : layer.effective_negative_weight }}
+            </span>
+          </td>
+          <td>
+            <span v-if="!item['不可试用流量清单'].length">—</span>
+            <span v-for="blocked in item['不可试用流量清单']" :key="blocked.layer" class="blocked-chip">
+              {{ blocked.layer }}（待补 {{ blocked.required_extra_negative_weight }}）
+            </span>
+          </td>
+        </tr>
+        <tr v-if="!calibrationItems.length">
+          <td colspan="6" class="empty-state">暂无已确认的分层误报校准批次</td>
+        </tr>
+      </tbody>
+    </table>
+
     <Teleport to="body">
       <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
         <div class="modal-card">
@@ -90,6 +131,28 @@ import { request } from '@/api/client'
 
 type Row = Record<string, string | number | null>
 
+interface LayerBasis {
+  layer: string
+  effective_negative_weight: number
+  negative_missing: boolean
+}
+
+interface BlockedLayer {
+  layer: string
+  required_extra_negative_weight: number
+}
+
+interface CalibrationConsumption {
+  模型编号: string
+  校准批次编号: string
+  可试用: boolean
+  可试用阈值范围: { min: number; max: number } | null
+  覆盖分层: string[]
+  可覆盖流量占比: number
+  不可试用流量清单: BlockedLayer[]
+  判定依据: { 分层有效负例权重: LayerBasis[] }
+}
+
 const ENDPOINT = '/api/alert'
 const columns = ["规则编号", "告警名称", "监控指标", "阈值条件", "告警级别", "通知方式", "静默时段", "规则状态"]
 const actions = ["保存配置", "启用规则", "停用规则"]
@@ -103,6 +166,23 @@ const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
 const showCreateModal = ref(false)
 const createFields = ref<Record<string, string>>({})
+const calibrationItems = ref<CalibrationConsumption[]>([])
+
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return `${(value * 100).toFixed(2)}%`
+}
+
+async function loadCalibrationConsumption(): Promise<void> {
+  try {
+    const response = await request(`${ENDPOINT}/calibration-consumption`)
+    if (!response.ok) return
+    const payload = await response.json()
+    calibrationItems.value = payload.items ?? []
+  } catch {
+    // 校准表读取失败不影响告警规则主表展示
+  }
+}
 
 function updateStats() {
   const data = rows.value
@@ -177,5 +257,14 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  void reload()
+  void loadCalibrationConsumption()
+})
 </script>
+
+<style scoped>
+.calib-title { margin: 20px 0 8px; font-size: 16px; }
+.layer-chip { display: inline-block; margin: 0 6px 4px 0; padding: 2px 8px; background: #f0f4ff; border-radius: 10px; font-size: 12px; }
+.blocked-chip { display: inline-block; margin: 0 6px 4px 0; padding: 2px 8px; background: #fdecea; color: #b42318; border-radius: 10px; font-size: 12px; }
+</style>

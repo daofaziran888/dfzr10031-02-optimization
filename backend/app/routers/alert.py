@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.schemas import ActionResult, EntryPayload, PageResult
 from app.services.alert import AlertService
+from app.services.calibration import calibration_service
 
 router = APIRouter(prefix="/api/alert", tags=["智能告警"])
 
@@ -14,6 +15,23 @@ service = AlertService()
 
 LIST_FIELDS = ["规则编号", "告警名称", "监控指标", "阈值条件", "告警级别", "通知方式", "静默时段", "规则状态"]
 STATUSES = ["草稿", "已配置", "生效中", "已停用"]
+
+
+@router.get("/calibration-consumption")
+def calibration_consumption(
+    model_id: str | None = Query(default=None, description="可选，按模型编号过滤校准表"),
+) -> dict[str, Any]:
+    """智能告警消费分层误报校准表：按规则生成可试用阈值范围与不可试用流量清单。
+
+    每条记录都附带校准批次编号以及各层有效负例权重，作为告警判定依据。
+    """
+    consumption = calibration_service.trial_consumption(model_id=model_id)
+    for item in consumption["items"]:
+        item["判定依据"]["告警消费说明"] = (
+            "仅当阈值落在可试用阈值范围内、且流量分层属于覆盖分层时才允许启用告警；"
+            "不可试用流量清单中的分层需要继续复核后再纳入。"
+        )
+    return consumption
 
 
 @router.get("/export")

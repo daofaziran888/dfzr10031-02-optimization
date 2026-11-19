@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.calibration_seed import build_eval_batches
+
 SEED_ROWS: dict[str, list[dict[str, Any]]] = {
     "metric_def": [{'id': 1,
   'status': '草稿',
@@ -651,5 +653,6 @@ SEED_ROWS: dict[str, list[dict[str, Any]]] = {
   '操作时间': '2026-09-03',
   '变更内容': '数据审计样例3',
   '审计结果': '数据审计样例3',
-  '记录状态': '数据审计样例3'}]
+  '记录状态': '数据审计样例3'}],
+    "eval_batch": build_eval_batches(),
 }
